@@ -1,8 +1,9 @@
+(() => {
 // Configuration
 const supabaseUrl = 'https://ezcfulijxtfglpfarxtl.supabase.co';
 // Using anon key for customer app
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6Y2Z1bGlqeHRmZ2xwZmFyeHRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDQwOTA3Nn0.wT_y9oXG-T6Vj1lX-A9_k8KkI0u_r_Y-w2oH0_h2y00';
-const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
 
 // State
 const state = {
@@ -44,10 +45,10 @@ els.closeAndroidBanner.addEventListener('click', () => {
 async function init() {
   setLang(state.lang);
   
-  // Force hide splash screen after 10 seconds maximum
+  // Force hide splash screen after 2 seconds maximum (ensure ultra-fast 1-2s load)
   const fallbackTimeout = setTimeout(() => {
     hideSplashAndRender();
-  }, 10000);
+  }, 2000);
 
   try {
     await checkSession();
@@ -71,11 +72,11 @@ function hideSplashAndRender() {
 
 async function checkSession() {
   try {
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
     if (error) throw error;
     if (session?.user) {
       state.user = session.user;
-      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+      const { data } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
       state.profile = data;
     }
   } catch (err) {
@@ -95,16 +96,16 @@ function getDistanceKm(lat1, lon1, lat2, lon2) {
 async function loadAppData() {
   try {
     // Load branches
-    const { data: branches } = await supabase.from('branches').select('*').eq('is_active', true);
+    const { data: branches } = await supabaseClient.from('branches').select('*').eq('is_active', true);
     let allBranches = branches || [];
     
     if (allBranches.length > 0) {
       let selected = allBranches.find(b => b.is_default) || allBranches[0];
       
-      // Try to get GPS location within 5 seconds
+      // Try to get GPS location within 1 second for fast loading
       try {
         const pos = await new Promise((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 60000 });
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 1000, maximumAge: 60000 });
         });
         
         if (pos && pos.coords) {
@@ -130,11 +131,11 @@ async function loadAppData() {
     }
 
     // Load products & categories
-    const { data: products } = await supabase.from('products').select('*, product_sizes(*), categories(id, name, name_en)').eq('is_active', true);
+    const { data: products } = await supabaseClient.from('products').select('*, product_sizes(*), categories(id, name, name_en)').eq('is_active', true);
     state.products = products || [];
 
     // Load banners safely
-    const { data: appSettings } = await supabase.from('app_settings').select('value').eq('key', 'banners').maybeSingle();
+    const { data: appSettings } = await supabaseClient.from('app_settings').select('value').eq('key', 'banners').maybeSingle();
     if (appSettings) state.banners = appSettings.value || [];
   } catch (err) {
     console.error('Failed to load app data:', err.message);
@@ -488,7 +489,7 @@ window.handleLogin = async () => {
   const password = document.getElementById('auth-pwd').value;
   if (!email || !password) return showToast('Please enter credentials', 'error');
   
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) {
     showToast(error.message, 'error');
   } else {
@@ -499,7 +500,7 @@ window.handleLogin = async () => {
 };
 
 window.handleLogout = async () => {
-  await supabase.auth.signOut();
+  await supabaseClient.auth.signOut();
   state.user = null;
   state.profile = null;
   renderAccount();
@@ -507,11 +508,12 @@ window.handleLogout = async () => {
 
 window.showToast = (msg, type = 'success') => {
   const toast = document.createElement('div');
-  toast.className = \`toast \${type}\`;
-  toast.innerHTML = \`<span class="toast-icon">\${type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️'}</span><span class="toast-text">\${msg}</span>\`;
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span class="toast-icon">${type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️'}</span><span class="toast-text">${msg}</span>`;
   els.toast.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
 };
 
 // Start
 init();
+})();
