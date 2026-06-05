@@ -43,42 +43,102 @@ els.closeAndroidBanner.addEventListener('click', () => {
 // Initialization
 async function init() {
   setLang(state.lang);
-  await checkSession();
-  await loadAppData();
   
-  // Hide splash
-  setTimeout(() => {
-    els.splash.classList.add('hidden');
-    els.app.classList.remove('hidden');
-    renderTab(state.activeTab);
-  }, 1000);
+  // Force hide splash screen after 10 seconds maximum
+  const fallbackTimeout = setTimeout(() => {
+    hideSplashAndRender();
+  }, 10000);
+
+  try {
+    await checkSession();
+    await loadAppData();
+  } catch (err) {
+    console.error('Initialization error:', err);
+  } finally {
+    clearTimeout(fallbackTimeout);
+    hideSplashAndRender();
+  }
 
   setupTabs();
 }
 
+function hideSplashAndRender() {
+  if (els.splash.classList.contains('hidden')) return;
+  els.splash.classList.add('hidden');
+  els.app.classList.remove('hidden');
+  renderTab(state.activeTab);
+}
+
 async function checkSession() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user) {
-    state.user = session.user;
-    const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-    state.profile = data;
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    if (session?.user) {
+      state.user = session.user;
+      const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+      state.profile = data;
+    }
+  } catch (err) {
+    console.warn('Session check failed:', err.message);
   }
 }
 
+// Haversine formula
+function getDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
 async function loadAppData() {
-  // Load branches
-  const { data: branches } = await supabase.from('branches').select('*').eq('is_active', true);
-  if (branches && branches.length > 0) {
-    state.branch = branches.find(b => b.is_default) || branches[0];
+  try {
+    // Load branches
+    const { data: branches } = await supabase.from('branches').select('*').eq('is_active', true);
+    let allBranches = branches || [];
+    
+    if (allBranches.length > 0) {
+      let selected = allBranches.find(b => b.is_default) || allBranches[0];
+      
+      // Try to get GPS location within 5 seconds
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, maximumAge: 60000 });
+        });
+        
+        if (pos && pos.coords) {
+          const userLat = pos.coords.latitude;
+          const userLon = pos.coords.longitude;
+          
+          let minDist = Infinity;
+          for (const b of allBranches) {
+            if (b.latitude && b.longitude) {
+              const d = getDistanceKm(userLat, userLon, b.latitude, b.longitude);
+              if (d < minDist) {
+                minDist = d;
+                selected = b;
+              }
+            }
+          }
+        }
+      } catch (geoErr) {
+        console.warn('Geolocation failed or denied, using default branch.', geoErr);
+      }
+      
+      state.branch = selected;
+    }
+
+    // Load products & categories
+    const { data: products } = await supabase.from('products').select('*, product_sizes(*), categories(id, name, name_en)').eq('is_active', true);
+    state.products = products || [];
+
+    // Load banners safely
+    const { data: appSettings } = await supabase.from('app_settings').select('value').eq('key', 'banners').maybeSingle();
+    if (appSettings) state.banners = appSettings.value || [];
+  } catch (err) {
+    console.error('Failed to load app data:', err.message);
   }
-
-  // Load products & categories
-  const { data: products } = await supabase.from('products').select('*, product_sizes(*), categories(id, name, name_en)').eq('is_active', true);
-  state.products = products || [];
-
-  // Load banners
-  const { data: appSettings } = await supabase.from('app_settings').select('value').eq('key', 'banners').single();
-  if (appSettings) state.banners = appSettings.value || [];
 }
 
 // Routing & Tabs
