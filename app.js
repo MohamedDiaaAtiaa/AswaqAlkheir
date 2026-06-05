@@ -2,7 +2,7 @@
 // Configuration
 const supabaseUrl = 'https://ezcfulijxtfglpfarxtl.supabase.co';
 // Using anon key for customer app
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6Y2Z1bGlqeHRmZ2xwZmFyeHRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDQwOTA3Nn0.wT_y9oXG-T6Vj1lX-A9_k8KkI0u_r_Y-w2oH0_h2y00';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6Y2Z1bGlqeHRmZ2xwZmFyeHRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MDkwNzYsImV4cCI6MjA5MTk4NTA3Nn0.6mRjNCZIlE5Y9LOYwCXxVXczqflL3YiF6QxbvcszTJ0';
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
 
 // State
