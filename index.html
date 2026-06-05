@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ar" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>أسواق الخير — Aswaq Al Kheir</title>
+  <meta name="description" content="Order fresh groceries from Aswaq Al Kheir. Fast delivery, great prices. مع أسواق الخير أنت دايماً بخير" />
+  <meta name="theme-color" content="#ea580c" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Android App Banner -->
+  <div id="android-banner" class="android-banner hidden">
+    <div class="android-banner-content">
+      <span class="android-banner-icon">📱</span>
+      <div class="android-banner-text">
+        <strong>Download the App</strong>
+        <span>Get a better experience on our Android app</span>
+      </div>
+      <a href="https://play.google.com/store/apps/details?id=com.moslogix.aswaqalkheir" target="_blank" rel="noopener" class="android-banner-btn">Download</a>
+      <button id="close-android-banner" class="android-banner-close" aria-label="Close">&times;</button>
+    </div>
+  </div>
+
+  <!-- Loading Splash -->
+  <div id="splash-screen" class="splash-screen">
+    <div class="splash-content">
+      <div class="splash-logo">🛒</div>
+      <div class="splash-brand">أسواق الخير</div>
+      <div class="splash-slogan">مع أسواق الخير أنت دايماً بخير</div>
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <!-- App Shell -->
+  <div id="app" class="app-shell hidden">
+    <!-- Main Content Area -->
+    <main id="main-content" class="main-content"></main>
+
+    <!-- Bottom Tab Bar -->
+    <nav id="tab-bar" class="tab-bar">
+      <button class="tab-item active" data-tab="home">
+        <span class="tab-emoji">🏠</span>
+        <span class="tab-label">Home</span>
+      </button>
+      <button class="tab-item" data-tab="shop">
+        <span class="tab-emoji">🏪</span>
+        <span class="tab-label">Shop</span>
+      </button>
+      <button class="tab-item" data-tab="cart">
+        <span class="tab-emoji">🛒</span>
+        <span class="tab-label">Cart</span>
+        <span id="cart-badge" class="tab-badge hidden">0</span>
+      </button>
+      <button class="tab-item" data-tab="account">
+        <span class="tab-emoji">👤</span>
+        <span class="tab-label">Account</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Modal Container -->
+  <div id="modal-overlay" class="modal-overlay hidden"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
