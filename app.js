@@ -13,6 +13,7 @@ const state = {
   categories: [],
   banners: [],
   cart: [],
+  allBranches: [],
   branch: null,
   lang: localStorage.getItem('aswaq_lang') || 'ar',
   activeTab: 'home'
@@ -97,7 +98,8 @@ async function loadAppData() {
   try {
     // Load branches
     const { data: branches } = await supabaseClient.from('branches').select('*').eq('is_active', true);
-    let allBranches = branches || [];
+    state.allBranches = branches || [];
+    let allBranches = state.allBranches;
     
     if (allBranches.length > 0) {
       let selected = allBranches.find(b => b.is_default) || allBranches[0];
@@ -130,8 +132,14 @@ async function loadAppData() {
       state.branch = selected;
     }
 
-    // Load products
-    const { data: products } = await supabaseClient.from('products').select('*').eq('is_active', true);
+    // Load products for branch
+    let prodQuery = supabaseClient.from('products').select('*').eq('is_active', true);
+    if (state.branch?.id) {
+      prodQuery = prodQuery.eq('branch_id', state.branch.id);
+    } else {
+      prodQuery = prodQuery.is('branch_id', null);
+    }
+    const { data: products } = await prodQuery;
     state.products = products || [];
 
     // Load banners safely
@@ -199,12 +207,13 @@ function renderHome() {
   els.main.innerHTML = `
     <div class="page active">
       <div class="home-header">
-        <div class="branch-selector">
+        <div class="branch-selector" onclick="openBranchSelector()">
           <span class="branch-icon">📍</span>
           <div class="branch-info">
             <span class="branch-label">${state.lang === 'ar' ? 'التوصيل من' : 'Delivering from'}</span>
             <span class="branch-name">${branchName || '...'}</span>
           </div>
+          <span style="font-size: 10px; color: var(--muted); margin-left: 4px; margin-right: 4px;">▼</span>
         </div>
       </div>
       
@@ -512,6 +521,49 @@ window.showToast = (msg, type = 'success') => {
   toast.innerHTML = `<span class="toast-icon">${type === 'success' ? '✅' : type === 'error' ? '❌' : '⚠️'}</span><span class="toast-text">${msg}</span>`;
   els.toast.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
+};
+
+window.openBranchSelector = () => {
+  const branchesHtml = state.allBranches.map(b => `
+    <div class="modal-option ${state.branch?.id === b.id ? 'active' : ''}" onclick="selectBranch('${b.id}')">
+      <span style="margin-${state.lang === 'ar' ? 'left' : 'right'}: 8px;">📍</span> ${state.lang === 'ar' ? b.name : (b.name_en || b.name)}
+    </div>
+  `).join('');
+  
+  els.modal.innerHTML = `
+    <div class="modal-content branch-modal">
+      <div class="modal-header">
+        <div class="modal-title">${state.lang === 'ar' ? 'اختر الفرع' : 'Choose Branch'}</div>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding-bottom: 20px;">
+        ${branchesHtml}
+      </div>
+    </div>
+  `;
+  els.modal.classList.remove('hidden');
+};
+
+window.selectBranch = async (id) => {
+  state.branch = state.allBranches.find(b => b.id === id);
+  closeModal();
+  
+  els.main.innerHTML = \`<div style="text-align:center; padding: 40px;"><div class="spinner" style="border-width:3px; width:30px; height:30px; border-color:rgba(0,0,0,0.1); border-top-color:var(--primary);"></div></div>\`;
+  
+  let prodQuery = supabaseClient.from('products').select('*').eq('is_active', true);
+  if (state.branch?.id) {
+    prodQuery = prodQuery.eq('branch_id', state.branch.id);
+  } else {
+    prodQuery = prodQuery.is('branch_id', null);
+  }
+  const { data: products } = await prodQuery;
+  state.products = products || [];
+  
+  renderTab(state.activeTab);
+};
+
+window.closeModal = () => {
+  els.modal.classList.add('hidden');
 };
 
 // Start
