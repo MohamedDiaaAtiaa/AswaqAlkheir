@@ -142,9 +142,14 @@ async function loadAppData() {
     const { data: products } = await prodQuery;
     state.products = products || [];
 
-    // Load banners safely
-    const { data: appSettings } = await supabaseClient.from('app_settings').select('value').eq('key', 'banners').maybeSingle();
-    if (appSettings) state.banners = appSettings.value || [];
+    // Load settings
+    const { data: settings } = await supabaseClient.from('app_settings').select('key, value').in('key', ['banners', 'categories']);
+    if (settings) {
+      const b = settings.find(s => s.key === 'banners');
+      const c = settings.find(s => s.key === 'categories');
+      if (b) state.banners = b.value || [];
+      if (c) state.categories = c.value || [];
+    }
   } catch (err) {
     console.error('Failed to load app data:', err.message);
   }
@@ -220,7 +225,16 @@ function renderHome() {
       ${renderBanners()}
       
       <div class="section-title">
-        <span>${state.lang === 'ar' ? 'المنتجات المميزة' : 'Featured Products'}</span>
+        <span>${state.lang === 'ar' ? 'التسوق حسب الفئة' : 'Shop by Category'}</span>
+        <span class="see-all" onclick="document.querySelector('[data-tab=shop]').click()">
+          ${state.lang === 'ar' ? 'عرض الكل' : 'See All'}
+        </span>
+      </div>
+      
+      ${renderCategories()}
+      
+      <div class="section-title">
+        <span>⭐ ${state.lang === 'ar' ? 'المنتجات المميزة' : 'Featured Products'}</span>
         <span class="see-all" onclick="document.querySelector('[data-tab=shop]').click()">
           ${state.lang === 'ar' ? 'عرض الكل' : 'See All'}
         </span>
@@ -232,6 +246,26 @@ function renderHome() {
     </div>
   `;
 }
+
+function renderCategories() {
+  if (!state.categories.length) return '';
+  return `
+    <div class="cat-carousel">
+      ${state.categories.map(c => `
+        <div class="cat-card" onclick="openCategory('${c.id}')">
+          <div class="cat-emoji">${c.emoji || '📦'}</div>
+          <div class="cat-overlay"></div>
+          <div class="cat-name">${state.lang === 'ar' ? (c.label_ar || c.label || c.id) : (c.label_en || c.label || c.id)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+window.openCategory = (catId) => {
+  state.shopFilter = catId;
+  document.querySelector('[data-tab=shop]').click();
+};
 
 function renderBanners() {
   if (!state.banners.length) return '';
@@ -279,22 +313,52 @@ function renderProductCard(product) {
 
 // Render Shop
 function renderShop() {
+  const catsHtml = `
+    <div class="filter-tabs">
+      <div class="filter-tab ${!state.shopFilter ? 'active' : ''}" onclick="filterByCategory('')">
+        ${state.lang === 'ar' ? 'الكل' : 'All'}
+      </div>
+      ${state.categories.map(c => `
+        <div class="filter-tab ${state.shopFilter === c.id ? 'active' : ''}" onclick="filterByCategory('${c.id}')">
+          ${c.emoji} ${state.lang === 'ar' ? (c.label_ar || c.label || c.id) : (c.label_en || c.label || c.id)}
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  let filtered = state.products;
+  if (state.shopFilter) {
+    filtered = filtered.filter(p => p.category === state.shopFilter);
+  }
+
   els.main.innerHTML = `
     <div class="page active">
       <div class="search-container">
         <span class="search-icon">🔍</span>
         <input type="text" class="search-input" placeholder="${t('search')}" onkeyup="filterShop(this.value)">
       </div>
+      ${catsHtml}
       <div class="product-grid" id="shop-grid" style="margin-top: 16px;">
-        ${state.products.map(p => renderProductCard(p)).join('')}
+        ${filtered.map(p => renderProductCard(p)).join('')}
       </div>
     </div>
   `;
 }
 
+window.filterByCategory = (catId) => {
+  state.shopFilter = catId;
+  renderShop();
+};
+
 window.filterShop = (query) => {
   const q = query.toLowerCase();
-  const filtered = state.products.filter(p => p.name.toLowerCase().includes(q) || (p.categories?.name || '').toLowerCase().includes(q));
+  let filtered = state.products;
+  if (state.shopFilter) filtered = filtered.filter(p => p.category === state.shopFilter);
+  filtered = filtered.filter(p => {
+    const nAr = (p.name_ar || p.name || '').toLowerCase();
+    const nEn = (p.name_en || '').toLowerCase();
+    return nAr.includes(q) || nEn.includes(q);
+  });
   document.getElementById('shop-grid').innerHTML = filtered.map(p => renderProductCard(p)).join('');
 };
 
@@ -564,6 +628,63 @@ window.selectBranch = async (id) => {
 
 window.closeModal = () => {
   els.modal.classList.add('hidden');
+};
+
+window.openProductDetail = (id) => {
+  const product = state.products.find(p => p.id === id);
+  if (!product) return;
+  const sizes = product.sizes || [];
+  if (!sizes.length) return;
+  state.selectedSize = sizes[0].label;
+  renderProductModal(product);
+};
+
+window.renderProductModal = (product) => {
+  const sizes = product.sizes || [];
+  const selectedSizeObj = sizes.find(s => s.label === state.selectedSize) || sizes[0];
+  const hasDiscount = selectedSizeObj.old_price && selectedSizeObj.old_price > selectedSizeObj.price;
+  
+  const sizesHtml = sizes.length > 1 ? `
+    <div style="margin-top: 16px;">
+      <div style="font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 8px;">${state.lang === 'ar' ? 'اختر الحجم' : 'Choose Size'}</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        ${sizes.map(s => `
+          <div onclick="state.selectedSize='${s.label}'; renderProductModal(state.products.find(p => p.id==='${product.id}'))" 
+               style="padding: 8px 16px; border-radius: 20px; border: 1.5px solid ${state.selectedSize === s.label ? 'var(--primary)' : 'var(--border)'}; background: ${state.selectedSize === s.label ? 'var(--primary-light)' : 'transparent'}; cursor: pointer; transition: all 0.2s;">
+            <div style="font-weight: 700; color: ${state.selectedSize === s.label ? 'var(--primary)' : 'var(--text)'}">${s.label}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  const name = state.lang === 'ar' ? (product.name_ar || product.name) : (product.name_en || product.name);
+  const desc = state.lang === 'ar' ? (product.description_ar || '') : (product.description_en || '');
+
+  els.modal.innerHTML = `
+    <div class="modal-content product-modal" style="padding: 0; overflow: hidden;">
+      <div style="position: relative; height: 250px; background: var(--bg-hover); display: flex; align-items: center; justify-content: center;">
+        ${product.image_url ? `<img src="${product.image_url}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="font-size: 80px;">${product.emoji}</div>`}
+        <button onclick="closeModal()" style="position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; background: rgba(0,0,0,0.5); color: white; border-radius: 50%; font-size: 20px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">&times;</button>
+      </div>
+      <div style="padding: 24px;">
+        <div style="font-size: 24px; font-weight: 800; margin-bottom: 8px;">${name}</div>
+        ${desc ? `<div style="color: var(--muted); font-size: 14px; margin-bottom: 16px; line-height: 1.6;">${desc}</div>` : ''}
+        
+        <div style="display: flex; align-items: flex-end; gap: 8px;">
+          <span style="font-size: 24px; font-weight: 800; color: var(--primary);">EGP ${selectedSizeObj.price}</span>
+          ${hasDiscount ? `<span style="font-size: 14px; text-decoration: line-through; color: var(--muted); margin-bottom: 4px;">EGP ${selectedSizeObj.old_price}</span>` : ''}
+        </div>
+        
+        ${sizesHtml}
+        
+        <button class="btn btn-primary" style="margin-top: 24px; width: 100%;" onclick="addToCart('${product.id}', '${selectedSizeObj.label}'); closeModal();">
+          ${t('addToCart')}
+        </button>
+      </div>
+    </div>
+  `;
+  els.modal.classList.remove('hidden');
 };
 
 // Start
