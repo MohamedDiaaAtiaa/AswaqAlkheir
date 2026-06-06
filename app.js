@@ -548,7 +548,7 @@ window.selectBranch = async (id) => {
   state.branch = state.allBranches.find(b => b.id === id);
   closeModal();
   
-  els.main.innerHTML = \`<div style="text-align:center; padding: 40px;"><div class="spinner" style="border-width:3px; width:30px; height:30px; border-color:rgba(0,0,0,0.1); border-top-color:var(--primary);"></div></div>\`;
+  els.main.innerHTML = `<div style="text-align:center; padding: 40px;"><div class="spinner" style="border-width:3px; width:30px; height:30px; border-color:rgba(0,0,0,0.1); border-top-color:var(--primary);"></div></div>`;
   
   let prodQuery = supabaseClient.from('products').select('*').eq('is_active', true);
   if (state.branch?.id) {
