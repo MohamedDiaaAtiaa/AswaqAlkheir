@@ -130,8 +130,8 @@ async function loadAppData() {
       state.branch = selected;
     }
 
-    // Load products & categories
-    const { data: products } = await supabaseClient.from('products').select('*, product_sizes(*), categories(id, name, name_en)').eq('is_active', true);
+    // Load products
+    const { data: products } = await supabaseClient.from('products').select('*').eq('is_active', true);
     state.products = products || [];
 
     // Load banners safely
@@ -243,7 +243,7 @@ function renderBanners() {
 }
 
 function renderProductCard(product) {
-  const sizes = product.product_sizes || [];
+  const sizes = product.sizes || [];
   if (!sizes.length) return '';
   const lowestSize = sizes.reduce((min, s) => s.price < min.price ? s : min, sizes[0]);
   
@@ -292,7 +292,7 @@ window.filterShop = (query) => {
 // Cart Logic
 window.addToCart = (productId, sizeLabel) => {
   const product = state.products.find(p => p.id === productId);
-  const size = product.product_sizes.find(s => s.label === sizeLabel);
+  const size = product.sizes.find(s => s.label === sizeLabel);
   const cartItemId = productId + '--' + sizeLabel;
   
   const existing = state.cart.find(i => i.cartItemId === cartItemId);
