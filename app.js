@@ -376,15 +376,16 @@ window.addToCart = (productId, sizeLabel) => {
   const product = state.products.find(p => p.id === productId);
   const size = product.sizes.find(s => s.label === sizeLabel);
   const cartItemId = productId + '--' + sizeLabel;
+  const step = product.accepts_decimals ? (1 / (product.max_decimal_divisible || 1)) : 1;
   
   const existing = state.cart.find(i => i.cartItemId === cartItemId);
   if (existing) {
-    existing.quantity += 1;
+    existing.quantity += step;
   } else {
     state.cart.push({
       cartItemId, productId,
       name: product.name, emoji: product.emoji, image_url: product.image_url,
-      size: sizeLabel, price: size.price, quantity: 1
+      size: sizeLabel, price: size.price, quantity: step, step, unit: product.unit, accepts_decimals: product.accepts_decimals
     });
   }
   updateCartBadge();
@@ -395,7 +396,23 @@ window.updateCartQty = (cartItemId, delta) => {
   const item = state.cart.find(i => i.cartItemId === cartItemId);
   if (item) {
     item.quantity += delta;
-    if (item.quantity <= 0) {
+    // Fix floating point issues
+    item.quantity = Math.round(item.quantity * 1000) / 1000;
+    if (item.quantity <= 0.001) {
+      state.cart = state.cart.filter(i => i.cartItemId !== cartItemId);
+    }
+  }
+  updateCartBadge();
+  if (state.activeTab === 'cart') renderCart();
+};
+
+window.setCartQty = (cartItemId, val) => {
+  const item = state.cart.find(i => i.cartItemId === cartItemId);
+  if (item) {
+    const v = parseFloat(val);
+    if (!isNaN(v) && v > 0) {
+      item.quantity = Math.round(v * 1000) / 1000;
+    } else {
       state.cart = state.cart.filter(i => i.cartItemId !== cartItemId);
     }
   }
@@ -448,9 +465,14 @@ function renderCart() {
               <div class="cart-item-price">EGP ${(i.price * i.quantity).toFixed(2)}</div>
             </div>
             <div class="cart-qty-ctrl">
-              <button class="qty-btn" onclick="updateCartQty('${i.cartItemId}', -1)">-</button>
-              <span class="qty-val">${i.quantity}</span>
-              <button class="qty-btn" onclick="updateCartQty('${i.cartItemId}', 1)">+</button>
+              <button class="qty-btn" onclick="updateCartQty('${i.cartItemId}', -${i.step || 1})">-</button>
+              <input type="number" step="${i.accepts_decimals ? 'any' : '1'}" min="0" 
+                value="${i.quantity}" 
+                onchange="setCartQty('${i.cartItemId}', this.value)"
+                style="width:50px; text-align:center; border:none; background:transparent; font-weight:800; font-size:15px; outline:none; -moz-appearance: textfield;"
+              >
+              <span style="font-size:11px; color:var(--muted); margin-left:-4px;">${i.unit ? (state.lang === 'ar' && i.unit === 'item' ? 'قطعة' : i.unit) : ''}</span>
+              <button class="qty-btn" onclick="updateCartQty('${i.cartItemId}', ${i.step || 1})">+</button>
             </div>
           </div>
         `).join('')}
@@ -700,7 +722,8 @@ window.openProductDetail = (id) => {
   const sizes = product.sizes || [];
   if (!sizes.length) return;
   state.selectedSize = sizes[0].label;
-  state.modalQty = 1;
+  const step = product.accepts_decimals ? (1 / (product.max_decimal_divisible || 1)) : 1;
+  state.modalQty = step;
   renderProductModal(product);
 };
 
@@ -746,10 +769,15 @@ window.renderProductModal = (product) => {
         </div>
         ${sizesHtml}
         <div style="display:flex; align-items:center; gap:16px; margin-top:20px;">
-          <div style="display:flex; align-items:center; gap:12px; background:var(--bg-hover); border-radius:12px; padding:6px;">
-            <button onclick="if(state.modalQty>1){state.modalQty--;renderProductModal(state.products.find(p=>p.id==='${product.id}'))}" style="width:36px;height:36px;background:white;border-radius:8px;font-weight:bold;font-size:18px;box-shadow:0 1px 2px rgba(0,0,0,0.05);cursor:pointer;">-</button>
-            <span style="font-weight:800; font-size:16px; min-width:24px; text-align:center;">${qty}</span>
-            <button onclick="state.modalQty++;renderProductModal(state.products.find(p=>p.id==='${product.id}'))" style="width:36px;height:36px;background:white;border-radius:8px;font-weight:bold;font-size:18px;box-shadow:0 1px 2px rgba(0,0,0,0.05);cursor:pointer;">+</button>
+          <div style="display:flex; align-items:center; gap:8px; background:var(--bg-hover); border-radius:12px; padding:6px;">
+            <button onclick="let step = ${product.accepts_decimals ? (1 / (product.max_decimal_divisible || 1)) : 1}; if(state.modalQty>step){state.modalQty = Math.round((state.modalQty-step)*1000)/1000;renderProductModal(state.products.find(p=>p.id==='${product.id}'))}" style="width:36px;height:36px;background:white;border-radius:8px;font-weight:bold;font-size:18px;box-shadow:0 1px 2px rgba(0,0,0,0.05);cursor:pointer; border:none;">-</button>
+            <input type="number" step="${product.accepts_decimals ? 'any' : '1'}" min="0" 
+              value="${qty}" 
+              onchange="let v=parseFloat(this.value); if(!isNaN(v) && v>0) { state.modalQty = Math.round(v*1000)/1000; renderProductModal(state.products.find(p=>p.id==='${product.id}')) }" 
+              style="width:50px; text-align:center; border:none; background:transparent; font-weight:800; font-size:16px; outline:none; -moz-appearance: textfield;"
+            >
+            <span style="font-size:12px; color:var(--muted); margin-left:-4px;">${product.unit ? (state.lang === 'ar' && product.unit === 'item' ? 'قطعة' : product.unit) : ''}</span>
+            <button onclick="let step = ${product.accepts_decimals ? (1 / (product.max_decimal_divisible || 1)) : 1}; state.modalQty = Math.round((state.modalQty+step)*1000)/1000; renderProductModal(state.products.find(p=>p.id==='${product.id}'))" style="width:36px;height:36px;background:white;border-radius:8px;font-weight:bold;font-size:18px;box-shadow:0 1px 2px rgba(0,0,0,0.05);cursor:pointer; border:none;">+</button>
           </div>
           <button class="btn btn-primary" style="flex:1;" onclick="addToCartQty('${product.id}','${sel.label}',${qty}); closeModal();">
             ${t('addToCart')} · EGP ${(sel.price * qty).toFixed(2)}
@@ -769,7 +797,7 @@ window.addToCartQty = (productId, sizeLabel, qty) => {
   if (existing) {
     existing.quantity += qty;
   } else {
-    state.cart.push({ cartItemId, productId, name: product.name, emoji: product.emoji, image_url: product.image_url, size: sizeLabel, price: size.price, quantity: qty });
+    state.cart.push({ cartItemId, productId, name: product.name, emoji: product.emoji, image_url: product.image_url, size: sizeLabel, price: size.price, quantity: qty, step: product.accepts_decimals ? (1 / (product.max_decimal_divisible || 1)) : 1, unit: product.unit, accepts_decimals: product.accepts_decimals });
   }
   updateCartBadge();
   showToast(state.lang === 'ar' ? 'تمت الإضافة للسلة' : 'Added to cart', 'success');
