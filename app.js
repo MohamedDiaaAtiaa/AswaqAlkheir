@@ -250,7 +250,7 @@ function renderHome() {
       </div>
       
       <div class="product-grid">
-        ${state.products.slice(0, 4).map(p => renderProductCard(p)).join('')}
+        ${state.products.slice(0, getHomeProductCount()).map(p => renderProductCard(p)).join('')}
       </div>
     </div>
   `;
@@ -383,7 +383,7 @@ window.addToCart = (productId, sizeLabel) => {
   } else {
     state.cart.push({
       cartItemId, productId,
-      name: product.name, emoji: product.emoji,
+      name: product.name, emoji: product.emoji, image_url: product.image_url,
       size: sizeLabel, price: size.price, quantity: 1
     });
   }
@@ -405,11 +405,14 @@ window.updateCartQty = (cartItemId, delta) => {
 
 function updateCartBadge() {
   const count = state.cart.reduce((s, i) => s + i.quantity, 0);
+  const sidebarBadge = document.getElementById('cart-badge-sidebar');
   if (count > 0) {
     els.cartBadge.textContent = count;
     els.cartBadge.classList.remove('hidden');
+    if (sidebarBadge) { sidebarBadge.textContent = count; sidebarBadge.classList.remove('hidden'); }
   } else {
     els.cartBadge.classList.add('hidden');
+    if (sidebarBadge) { sidebarBadge.classList.add('hidden'); }
   }
 }
 
@@ -438,7 +441,7 @@ function renderCart() {
       <div class="cart-items">
         ${state.cart.map(i => `
           <div class="cart-item">
-            <div class="cart-item-img">${i.emoji || '📦'}</div>
+            <div class="cart-item-img">${i.image_url ? `<img src="${i.image_url}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">` : (i.emoji || '📦')}</div>
             <div class="cart-item-info">
               <div class="cart-item-name">${i.name}</div>
               <div class="cart-item-size">${i.size}</div>
@@ -487,13 +490,127 @@ window.applyCoupon = () => {
 };
 
 window.proceedToCheckout = () => {
-  if (!state.user) {
-    showToast(state.lang === 'ar' ? 'يرجى تسجيل الدخول أولاً' : 'Please log in to checkout', 'warning');
-    renderAccount();
+  renderCheckout();
+};
+
+function getHomeProductCount() {
+  return window.innerWidth >= 1200 ? 12 : window.innerWidth >= 768 ? 8 : 6;
+}
+
+function renderCheckout() {
+  const subtotal = state.cart.reduce((s, i) => s + (i.price * i.quantity), 0);
+  const delivery = 20;
+  const total = subtotal + delivery;
+  const saved = JSON.parse(localStorage.getItem('aswaq_checkout') || '{}');
+
+  els.main.innerHTML = `
+    <div class="page active" style="padding-bottom: 24px;">
+      <div class="header">
+        <button style="font-size:18px; color:var(--primary); font-weight:700;" onclick="renderCart()">${state.lang === 'ar' ? '→ رجوع' : '← Back'}</button>
+        <div class="header-title">${t('checkout')}</div>
+        <div></div>
+      </div>
+
+      <div style="padding: 20px;">
+        <div style="font-size:15px; font-weight:800; margin-bottom:12px;">${state.lang === 'ar' ? '📋 معلومات التوصيل' : '📋 Delivery Info'}</div>
+        <div class="input-group"><label class="input-label">${state.lang === 'ar' ? 'الاسم الكامل' : 'Full Name'} *</label><div class="input-wrapper"><input type="text" id="co-name" class="input-field" value="${saved.name || ''}" placeholder="${state.lang === 'ar' ? 'محمد أحمد' : 'John Doe'}"></div></div>
+        <div class="input-group"><label class="input-label">${state.lang === 'ar' ? 'رقم الهاتف' : 'Phone'} *</label><div class="input-wrapper"><input type="tel" id="co-phone" class="input-field" value="${saved.phone || ''}" placeholder="01xxxxxxxxx"></div></div>
+        <div class="input-group"><label class="input-label">${state.lang === 'ar' ? 'العنوان' : 'Address'} *</label><div class="input-wrapper"><input type="text" id="co-address" class="input-field" value="${saved.address || ''}" placeholder="${state.lang === 'ar' ? 'الشارع والمنطقة' : 'Street, Area'}"></div></div>
+        <div style="display:flex; gap:12px;"><div class="input-group" style="flex:1;"><label class="input-label">${state.lang === 'ar' ? 'المدينة' : 'City'} *</label><div class="input-wrapper"><input type="text" id="co-city" class="input-field" value="${saved.city || ''}"></div></div></div>
+
+        <div style="font-size:15px; font-weight:800; margin: 20px 0 12px;">${state.lang === 'ar' ? '💳 طريقة الدفع' : '💳 Payment Method'}</div>
+        <div id="pay-methods">
+          <div class="modal-option active" onclick="selectPayment('cod')" id="pay-cod" style="border-radius:12px; margin-bottom:8px; border:1.5px solid var(--primary); background:var(--primary-light);">
+            💵 ${state.lang === 'ar' ? 'الدفع عند الاستلام' : 'Cash on Delivery'}
+          </div>
+          <div class="modal-option" onclick="selectPayment('instapay')" id="pay-instapay" style="border-radius:12px; margin-bottom:8px; border:1.5px solid var(--border);">
+            ⚡ ${state.lang === 'ar' ? 'انستاباي' : 'InstaPay'}
+          </div>
+        </div>
+
+        <div style="font-size:15px; font-weight:800; margin: 20px 0 12px;">${state.lang === 'ar' ? '📝 ملاحظات' : '📝 Notes'}</div>
+        <div class="input-wrapper"><textarea id="co-notes" class="input-field" rows="3" style="resize:none;" placeholder="${state.lang === 'ar' ? 'أي ملاحظات...' : 'Any special notes...'}"></textarea></div>
+
+        <div style="background:var(--warning-bg); padding:12px; border-radius:12px; margin-top:16px; font-size:13px; color:#b45309; font-weight:700;">⚠️ ${state.lang === 'ar' ? 'الأوزان تقريبية وقد يختلف السعر النهائي قليلاً' : 'Weights are approximate, final price may vary slightly'}</div>
+
+        <div class="cart-summary" style="margin: 20px 0;">
+          <div class="summary-row"><span>${state.lang === 'ar' ? 'المجموع الفرعي' : 'Subtotal'}</span><span>EGP ${subtotal.toFixed(2)}</span></div>
+          <div class="summary-row"><span>${state.lang === 'ar' ? 'التوصيل' : 'Delivery'}</span><span>EGP ${delivery.toFixed(2)}</span></div>
+          <div class="summary-row summary-total"><span>${t('total')}</span><span>EGP ${total.toFixed(2)}</span></div>
+        </div>
+
+        <button class="btn btn-primary" onclick="placeOrder()">${state.lang === 'ar' ? 'تأكيد الطلب' : 'Place Order'}</button>
+      </div>
+    </div>
+  `;
+  state.paymentMethod = 'cod';
+}
+
+window.selectPayment = (method) => {
+  state.paymentMethod = method;
+  document.getElementById('pay-cod').style.border = method === 'cod' ? '1.5px solid var(--primary)' : '1.5px solid var(--border)';
+  document.getElementById('pay-cod').style.background = method === 'cod' ? 'var(--primary-light)' : 'transparent';
+  document.getElementById('pay-instapay').style.border = method === 'instapay' ? '1.5px solid var(--primary)' : '1.5px solid var(--border)';
+  document.getElementById('pay-instapay').style.background = method === 'instapay' ? 'var(--primary-light)' : 'transparent';
+};
+
+window.placeOrder = async () => {
+  const name = document.getElementById('co-name').value.trim();
+  const phone = document.getElementById('co-phone').value.trim();
+  const address = document.getElementById('co-address').value.trim();
+  const city = document.getElementById('co-city').value.trim();
+  const notes = document.getElementById('co-notes').value.trim();
+
+  if (!name || !phone || !address || !city) {
+    showToast(state.lang === 'ar' ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill all required fields', 'error');
     return;
   }
-  showToast(state.lang === 'ar' ? 'جاري التحويل للدفع...' : 'Proceeding to checkout...', 'success');
-  // Complete checkout implementation would go here
+
+  localStorage.setItem('aswaq_checkout', JSON.stringify({ name, phone, address, city }));
+
+  const orderId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  const subtotal = state.cart.reduce((s, i) => s + (i.price * i.quantity), 0);
+  const delivery = 20;
+
+  try {
+    const { error: orderErr } = await supabaseClient.from('orders').insert([{
+      id: orderId,
+      user_id: state.user?.id || null,
+      customer_name: name,
+      customer_phone: phone,
+      customer_address: `${address}, ${city}`,
+      payment_method: state.paymentMethod,
+      notes: notes || null,
+      branch_id: state.branch?.id || null,
+      delivery_fee: delivery,
+    }]);
+    if (orderErr) throw orderErr;
+
+    const items = state.cart.map(i => ({
+      order_id: orderId,
+      product_id: i.productId,
+      product_name: `${i.name} (${i.size})`,
+      price: i.price,
+      quantity: i.quantity,
+    }));
+    const { error: itemsErr } = await supabaseClient.from('order_items').insert(items);
+    if (itemsErr) throw itemsErr;
+
+    state.cart = [];
+    updateCartBadge();
+    els.main.innerHTML = `
+      <div class="page active" style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60vh; text-align:center; padding:40px;">
+        <div style="font-size:80px; margin-bottom:16px;">🎉</div>
+        <div style="font-size:24px; font-weight:800; margin-bottom:8px;">${state.lang === 'ar' ? 'تم الطلب بنجاح!' : 'Order Placed!'}</div>
+        <div style="color:var(--muted); margin-bottom:8px;">${state.lang === 'ar' ? 'رقم الطلب' : 'Order ID'}: #${orderId.slice(0,8).toUpperCase()}</div>
+        <div style="color:var(--muted); margin-bottom:24px;">${state.lang === 'ar' ? 'سنتواصل معك قريباً' : 'We will contact you soon'}</div>
+        <button class="btn btn-primary" style="width:auto;" onclick="document.querySelector('[data-tab=home]').click()">${state.lang === 'ar' ? 'العودة للرئيسية' : 'Back to Home'}</button>
+      </div>
+    `;
+  } catch (e) {
+    console.error(e);
+    showToast(state.lang === 'ar' ? 'فشل إرسال الطلب' : 'Order failed: ' + e.message, 'error');
+  }
 };
 
 // Auth / Account
@@ -583,55 +700,79 @@ window.openProductDetail = (id) => {
   const sizes = product.sizes || [];
   if (!sizes.length) return;
   state.selectedSize = sizes[0].label;
+  state.modalQty = 1;
   renderProductModal(product);
 };
 
 window.renderProductModal = (product) => {
   const sizes = product.sizes || [];
-  const selectedSizeObj = sizes.find(s => s.label === state.selectedSize) || sizes[0];
-  const hasDiscount = selectedSizeObj.old_price && selectedSizeObj.old_price > selectedSizeObj.price;
-  
+  const sel = sizes.find(s => s.label === state.selectedSize) || sizes[0];
+  const hasDiscount = sel.old_price && sel.old_price > sel.price;
+  const name = state.lang === 'ar' ? (product.name_ar || product.name) : (product.name_en || product.name);
+  const desc = state.lang === 'ar' ? (product.description_ar || product.description || '') : (product.description_en || product.description || '');
+  const qty = state.modalQty || 1;
+
   const sizesHtml = sizes.length > 1 ? `
-    <div style="margin-top: 16px;">
-      <div style="font-size: 14px; font-weight: 700; color: var(--muted); margin-bottom: 8px;">${state.lang === 'ar' ? 'اختر الحجم' : 'Choose Size'}</div>
-      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-        ${sizes.map(s => `
-          <div onclick="state.selectedSize='${s.label}'; renderProductModal(state.products.find(p => p.id==='${product.id}'))" 
-               style="padding: 8px 16px; border-radius: 20px; border: 1.5px solid ${state.selectedSize === s.label ? 'var(--primary)' : 'var(--border)'}; background: ${state.selectedSize === s.label ? 'var(--primary-light)' : 'transparent'}; cursor: pointer; transition: all 0.2s;">
-            <div style="font-weight: 700; color: ${state.selectedSize === s.label ? 'var(--primary)' : 'var(--text)'}">${s.label}</div>
-          </div>
-        `).join('')}
+    <div style="margin-top:16px;">
+      <div style="font-size:13px; font-weight:700; color:var(--muted); margin-bottom:8px; text-transform:uppercase;">${state.lang === 'ar' ? 'اختر الحجم' : 'Choose Size'}</div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        ${sizes.map(s => {
+          const active = state.selectedSize === s.label;
+          const sDiscount = s.old_price && s.old_price > s.price;
+          return `<div onclick="state.selectedSize='${s.label}'; renderProductModal(state.products.find(p=>p.id==='${product.id}'))"
+            style="padding:10px 16px; border-radius:12px; border:1.5px solid ${active ? 'var(--primary)' : 'var(--border)'}; background:${active ? 'var(--primary-light)' : 'var(--card)'}; cursor:pointer; transition:all 0.2s; text-align:center; min-width:80px;">
+            <div style="font-weight:700; font-size:14px; color:${active ? 'var(--primary)' : 'var(--text)'}">${s.label}</div>
+            <div style="font-size:12px; font-weight:800; color:${active ? 'var(--primary)' : 'var(--text)'}; margin-top:2px;">EGP ${s.price}</div>
+            ${sDiscount ? `<div style="font-size:10px; text-decoration:line-through; color:var(--muted);">${s.old_price}</div>` : ''}
+          </div>`;
+        }).join('')}
       </div>
     </div>
   ` : '';
 
-  const name = state.lang === 'ar' ? (product.name_ar || product.name) : (product.name_en || product.name);
-  const desc = state.lang === 'ar' ? (product.description_ar || '') : (product.description_en || '');
-
   els.modal.innerHTML = `
-    <div class="modal-content product-modal" style="padding: 0; overflow: hidden;">
-      <div style="position: relative; height: 250px; background: var(--bg-hover); display: flex; align-items: center; justify-content: center;">
-        ${product.image_url ? `<img src="${product.image_url}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="font-size: 80px;">${product.emoji}</div>`}
-        <button onclick="closeModal()" style="position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; background: rgba(0,0,0,0.5); color: white; border-radius: 50%; font-size: 20px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">&times;</button>
+    <div class="modal-content product-modal" style="padding:0; overflow:hidden;">
+      <div style="position:relative; height:280px; background:var(--bg-hover); display:flex; align-items:center; justify-content:center;">
+        ${product.image_url ? `<img src="${product.image_url}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="font-size:80px;">${product.emoji}</div>`}
+        <button onclick="closeModal()" style="position:absolute; top:16px; right:16px; width:36px; height:36px; background:rgba(0,0,0,0.5); color:white; border-radius:50%; font-size:20px; display:flex; align-items:center; justify-content:center; border:none; cursor:pointer;">&times;</button>
+        ${hasDiscount ? `<div style="position:absolute; top:16px; left:16px; background:var(--danger); color:white; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:800;">-${Math.round(((sel.old_price - sel.price) / sel.old_price) * 100)}%</div>` : ''}
       </div>
-      <div style="padding: 24px;">
-        <div style="font-size: 24px; font-weight: 800; margin-bottom: 8px;">${name}</div>
-        ${desc ? `<div style="color: var(--muted); font-size: 14px; margin-bottom: 16px; line-height: 1.6;">${desc}</div>` : ''}
-        
-        <div style="display: flex; align-items: flex-end; gap: 8px;">
-          <span style="font-size: 24px; font-weight: 800; color: var(--primary);">EGP ${selectedSizeObj.price}</span>
-          ${hasDiscount ? `<span style="font-size: 14px; text-decoration: line-through; color: var(--muted); margin-bottom: 4px;">EGP ${selectedSizeObj.old_price}</span>` : ''}
+      <div style="padding:24px;">
+        <div style="font-size:22px; font-weight:800; margin-bottom:4px;">${name}</div>
+        ${desc ? `<div style="color:var(--muted); font-size:14px; margin-bottom:16px; line-height:1.7;">${desc}</div>` : ''}
+        <div style="display:flex; align-items:flex-end; gap:8px; margin-bottom:4px;">
+          <span style="font-size:26px; font-weight:800; color:var(--primary);">EGP ${sel.price}</span>
+          ${hasDiscount ? `<span style="font-size:14px; text-decoration:line-through; color:var(--muted); margin-bottom:4px;">EGP ${sel.old_price}</span>` : ''}
         </div>
-        
         ${sizesHtml}
-        
-        <button class="btn btn-primary" style="margin-top: 24px; width: 100%;" onclick="addToCart('${product.id}', '${selectedSizeObj.label}'); closeModal();">
-          ${t('addToCart')}
-        </button>
+        <div style="display:flex; align-items:center; gap:16px; margin-top:20px;">
+          <div style="display:flex; align-items:center; gap:12px; background:var(--bg-hover); border-radius:12px; padding:6px;">
+            <button onclick="if(state.modalQty>1){state.modalQty--;renderProductModal(state.products.find(p=>p.id==='${product.id}'))}" style="width:36px;height:36px;background:white;border-radius:8px;font-weight:bold;font-size:18px;box-shadow:0 1px 2px rgba(0,0,0,0.05);cursor:pointer;">-</button>
+            <span style="font-weight:800; font-size:16px; min-width:24px; text-align:center;">${qty}</span>
+            <button onclick="state.modalQty++;renderProductModal(state.products.find(p=>p.id==='${product.id}'))" style="width:36px;height:36px;background:white;border-radius:8px;font-weight:bold;font-size:18px;box-shadow:0 1px 2px rgba(0,0,0,0.05);cursor:pointer;">+</button>
+          </div>
+          <button class="btn btn-primary" style="flex:1;" onclick="addToCartQty('${product.id}','${sel.label}',${qty}); closeModal();">
+            ${t('addToCart')} · EGP ${(sel.price * qty).toFixed(2)}
+          </button>
+        </div>
       </div>
     </div>
   `;
   els.modal.classList.remove('hidden');
+};
+
+window.addToCartQty = (productId, sizeLabel, qty) => {
+  const product = state.products.find(p => p.id === productId);
+  const size = product.sizes.find(s => s.label === sizeLabel);
+  const cartItemId = productId + '--' + sizeLabel;
+  const existing = state.cart.find(i => i.cartItemId === cartItemId);
+  if (existing) {
+    existing.quantity += qty;
+  } else {
+    state.cart.push({ cartItemId, productId, name: product.name, emoji: product.emoji, image_url: product.image_url, size: sizeLabel, price: size.price, quantity: qty });
+  }
+  updateCartBadge();
+  showToast(state.lang === 'ar' ? 'تمت الإضافة للسلة' : 'Added to cart', 'success');
 };
 
 // Start
