@@ -160,8 +160,9 @@ function setupTabs() {
   document.querySelectorAll('.tab-item').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      state.activeTab = tab.dataset.tab;
+      const activeTabId = tab.dataset.tab;
+      document.querySelectorAll(`.tab-item[data-tab="${activeTabId}"]`).forEach(t => t.classList.add('active'));
+      state.activeTab = activeTabId;
       renderTab(state.activeTab);
     });
   });
@@ -209,17 +210,25 @@ function setLang(lang) {
 function renderHome() {
   const branchName = state.lang === 'ar' ? state.branch?.name : (state.branch?.name_en || state.branch?.name);
   
+  const h = new Date().getHours();
+  let greeting = h < 12 ? (state.lang === 'ar' ? 'صباح الخير' : 'Good Morning') : h < 18 ? (state.lang === 'ar' ? 'مساء الخير' : 'Good Afternoon') : (state.lang === 'ar' ? 'مساء الخير' : 'Good Evening');
+  
   els.main.innerHTML = `
     <div class="page active">
-      <div class="home-header">
-        <div class="branch-selector" onclick="openBranchSelector()">
-          <span class="branch-icon">📍</span>
-          <div class="branch-info">
-            <span class="branch-label">${state.lang === 'ar' ? 'التوصيل من' : 'Delivering from'}</span>
-            <span class="branch-name">${branchName || '...'}</span>
-          </div>
-          <span style="font-size: 10px; color: var(--muted); margin-left: 4px; margin-right: 4px;">▼</span>
+      <div class="home-topbar" style="background: var(--primary); padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; color: white;">
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-size: 13px; font-weight: 500; color: var(--primary-light);">${greeting} 👋</span>
+          <span style="font-size: 24px; font-weight: 800;">أسواق الخير</span>
         </div>
+        <div class="location-pill" onclick="openBranchSelector()" style="background: rgba(255,255,255,0.2); border-radius: 20px; padding: 6px 12px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+          <span style="font-size: 12px; font-weight: 700;">📍 ${branchName || '...'}</span>
+          <span style="font-size: 10px; color: rgba(255,255,255,0.7);">▼</span>
+        </div>
+      </div>
+      
+      <div class="search-bar-fake" onclick="document.querySelector('[data-tab=shop]').click()" style="margin: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: flex; gap: 8px; align-items: center; cursor: pointer;">
+        <span>🔍</span>
+        <span style="color: var(--muted); font-size: 14px;">${t('search')}</span>
       </div>
       
       ${renderBanners()}
@@ -487,56 +496,20 @@ window.proceedToCheckout = () => {
   // Complete checkout implementation would go here
 };
 
-// Render Account
+// Auth / Account
 function renderAccount() {
-  if (!state.user) {
-    els.main.innerHTML = `
-      <div class="page active auth-container">
-        <div class="auth-hero">
-          <div class="auth-logo">🛒</div>
-          <div class="auth-title">أسواق الخير</div>
-        </div>
-        
-        <div style="background: var(--card); padding: 24px; border-radius: 20px; border: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-          <div class="input-group">
-            <label class="input-label">Email</label>
-            <div class="input-wrapper">
-              <input type="email" id="auth-email" class="input-field" placeholder="you@example.com">
-            </div>
-          </div>
-          <div class="input-group">
-            <label class="input-label">Password</label>
-            <div class="input-wrapper">
-              <input type="password" id="auth-pwd" class="input-field" placeholder="••••••••">
-            </div>
-          </div>
-          <button class="btn btn-primary" onclick="handleLogin()" style="margin-top: 12px;">${t('login')}</button>
-        </div>
-        
-        <div style="text-align: center; margin-top: 24px;">
-          <button class="btn-secondary" style="border: none; background: transparent;" onclick="setLang(state.lang === 'ar' ? 'en' : 'ar'); renderAccount();">
-            🌐 ${state.lang === 'ar' ? 'Switch to English' : 'التبديل للعربية'}
-          </button>
-        </div>
-      </div>
-    `;
-    return;
-  }
-  
   els.main.innerHTML = `
     <div class="page active">
       <div class="header">
         <div class="header-title">${t('account')}</div>
       </div>
-      
       <div class="account-card">
-        <div class="account-avatar">${(state.profile?.full_name || state.user.email)[0].toUpperCase()}</div>
+        <div class="account-avatar">👤</div>
         <div>
-          <div style="font-weight: 800; font-size: 18px;">${state.profile?.full_name || 'Customer'}</div>
-          <div style="color: var(--muted); font-size: 14px;">${state.user.email}</div>
+          <div style="font-size: 18px; font-weight: 800;">${t('welcome')}</div>
+          <div style="font-size: 14px; color: var(--muted);">${t('guest')}</div>
         </div>
       </div>
-      
       <div class="menu-list">
         <a href="#" class="menu-item">
           <span class="menu-icon">📦</span>
@@ -549,35 +522,9 @@ function renderAccount() {
           <span style="font-size: 12px; color: var(--muted);">${state.lang === 'en' ? 'English' : 'العربية'}</span>
         </a>
       </div>
-      
-      <div style="padding: 0 20px;">
-        <button class="btn btn-secondary" onclick="handleLogout()">${t('logout')}</button>
-      </div>
     </div>
   `;
 }
-
-window.handleLogin = async () => {
-  const email = document.getElementById('auth-email').value;
-  const password = document.getElementById('auth-pwd').value;
-  if (!email || !password) return showToast('Please enter credentials', 'error');
-  
-  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) {
-    showToast(error.message, 'error');
-  } else {
-    state.user = data.user;
-    showToast(t('welcome'), 'success');
-    renderAccount();
-  }
-};
-
-window.handleLogout = async () => {
-  await supabaseClient.auth.signOut();
-  state.user = null;
-  state.profile = null;
-  renderAccount();
-};
 
 window.showToast = (msg, type = 'success') => {
   const toast = document.createElement('div');

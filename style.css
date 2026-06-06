@@ -51,17 +51,34 @@ button, input, select, textarea { font-family: inherit; }
 button { cursor: pointer; border: none; background: none; }
 a { color: var(--primary); text-decoration: none; }
 
-/* Desktop Container (Mobile Simulator) */
+/* Desktop Container (Mobile Simulator initially, now responsive) */
 .app-shell {
   width: 100%;
-  max-width: var(--max-width);
+  max-width: 100%;
   background: var(--card);
   min-height: 100vh;
   position: relative;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 0 20px rgba(0,0,0,0.05);
   overflow-x: hidden;
+}
+
+.sidebar { display: none; }
+
+@media (min-width: 768px) {
+  .app-shell { flex-direction: row; }
+  .sidebar {
+    display: flex; flex-direction: column; width: 250px; background: var(--card); border-right: 1px solid var(--border);
+    height: 100vh; position: sticky; top: 0; z-index: 100;
+  }
+  .sidebar-logo { padding: 24px; font-size: 20px; font-weight: 800; color: var(--primary); border-bottom: 1px solid var(--border); text-align: center; }
+  .sidebar-nav { display: flex; flex-direction: column; padding: 16px 0; }
+  .sidebar .tab-item { flex-direction: row; justify-content: flex-start; padding: 16px 24px; gap: 16px; font-size: 16px; width: 100%; }
+  .sidebar .tab-emoji { font-size: 24px; }
+  .sidebar .tab-label { font-size: 16px; }
+  .tab-bar { display: none !important; }
+  .main-content { flex: 1; padding-bottom: 0; }
+  html[dir="rtl"] .sidebar { border-right: none; border-left: 1px solid var(--border); }
 }
 
 /* Splash Screen */

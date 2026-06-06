@@ -37,6 +37,30 @@
 
   <!-- App Shell -->
   <div id="app" class="app-shell hidden">
+    <!-- Desktop Sidebar (Hidden on mobile) -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-logo">🛒 أسواق الخير</div>
+      <nav class="sidebar-nav">
+        <button class="tab-item active" data-tab="home">
+          <span class="tab-emoji">🏠</span>
+          <span class="tab-label">Home</span>
+        </button>
+        <button class="tab-item" data-tab="shop">
+          <span class="tab-emoji">🏪</span>
+          <span class="tab-label">Shop</span>
+        </button>
+        <button class="tab-item" data-tab="cart">
+          <span class="tab-emoji">🛒</span>
+          <span class="tab-label">Cart</span>
+          <span id="cart-badge-sidebar" class="tab-badge hidden">0</span>
+        </button>
+        <button class="tab-item" data-tab="account">
+          <span class="tab-emoji">👤</span>
+          <span class="tab-label">Account</span>
+        </button>
+      </nav>
+    </aside>
+
     <!-- Main Content Area -->
     <main id="main-content" class="main-content"></main>
 
